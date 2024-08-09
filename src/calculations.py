@@ -1,26 +1,26 @@
-def calculate_monthly_payment(principal, annual_rate, months):
-    if annual_rate == 0:
-        return principal / months
-    monthly_rate = annual_rate / 12
-    return (principal * monthly_rate * (1 + monthly_rate)**months) / ((1 + monthly_rate)**months - 1)
-
 def generate_amortization_schedule(principal, annual_rate, months):
-    monthly_payment = calculate_monthly_payment(principal, annual_rate, months)
+    # Calculate the fixed principal repayment amount
+    fixed_principal_repayment = principal / months
+    # Convert annual rate to monthly rate
     schedule = []
+    remaining_principal = principal
     
     for _ in range(months):
-        interest_payment = (principal * annual_rate / 12)
-        principal_payment = monthly_payment - interest_payment
-        principal -= principal_payment
+        # Calculate interest based on remaining principal
+        interest_payment = remaining_principal * annual_rate
+        # Total payment for the month
+        total_payment = interest_payment + fixed_principal_repayment
+        # Update remaining principal
+        remaining_principal -= fixed_principal_repayment
         
-        if principal < 0:
-            principal = 0
+        if remaining_principal < 0:
+            remaining_principal = 0
         
         schedule.append({
-            'Monthly Payment': round(monthly_payment, 2),
-            'Principal Repayment': round(principal_payment, 2),
-            'Total Payment': round(monthly_payment + interest_payment, 2),
-            'Remaining Principal': round(principal, 2)
+            'Interes y Servicio': round(interest_payment, 2),
+            'Abono a Capital': round(fixed_principal_repayment, 2),
+            'Total Cancelar': round(total_payment, 2),
+            'Capital Restante': round(remaining_principal, 2)
         })
     
     return schedule
@@ -34,10 +34,12 @@ def perform_calculation(principal, months):
         
         result = ""
         for i, payment in enumerate(schedule, start=1):
-            result += (f"Payment {i}: Monthly Payment: ${payment['Monthly Payment']}, "
-                       f"Principal Repayment: ${payment['Principal Repayment']}, "
-                       f"Total Payment: ${payment['Total Payment']}, "
-                       f"Remaining Principal: ${payment['Remaining Principal']}\n")
+            result += (f"Pago {i}:\n"
+                       f"Interes y Servicio: ${payment['Interes y Servicio']}\n"
+                       f"Abono a Capital: ${payment['Abono a Capital']}\n"
+                       f"Total Cancelar: ${payment['Total Cancelar']}\n"
+                       f"Capital Restante: ${payment['Capital Restante']}\n"
+                       "--------------------------------\n")
         return result.strip()
     
     except ValueError:
