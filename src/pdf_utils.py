@@ -1,71 +1,79 @@
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-from reportlab.pdfgen import canvas
-from PyPDF2 import PdfReader, PdfWriter
-import os
+from reportlab.lib.units import inch
 
-def generate_pdf(filename, schedule, client_name, principal, months, logo_path=None, template_path=None):
-    # Create a temporary PDF with the loan data
-    temp_pdf = filename.replace(".pdf", "_temp.pdf")
-    pdf = SimpleDocTemplate(temp_pdf, pagesize=A4)
-    elements = []
-
-    # Add client info
+def generate_pdf(filename, schedule, client_name, principal, term, logo_path, template_path):
+    # Create PDF document
+    doc = SimpleDocTemplate(filename, pagesize=letter)
+    
+    # Define styles
     styles = getSampleStyleSheet()
-    elements.append(Paragraph(f"Cliente: {client_name}", styles['Title']))
-    elements.append(Paragraph(f"Monto de Crédito: ${principal:.2f}", styles['Normal']))
-    elements.append(Paragraph(f"Plazo de Pagos: {months} meses", styles['Normal']))
-    elements.append(Paragraph(" ", styles['Normal']))  # Add some space
+    title_style = ParagraphStyle(
+        "TitleStyle",
+        parent=styles['Title'],
+        fontSize=24,
+        alignment=1,  # Center alignment
+        spaceAfter=12,
+        textColor=colors.blue
+    )
+    normal_style = styles['Normal']
+    normal_style.fontSize = 12
+    normal_style.leading = 14
+    normal_style.spaceAfter = 6
 
-    # Prepare the table data
-    table_data = [['Mes', 'Interes y Servicios', 'Abono a Capital', 'Total a Cancelar', 'Capital Restante']]
+    # Build the PDF content
+    content = []
 
-    for i, payment in enumerate(schedule, start=1):
-        table_data.append([
-            f"{i}",
-            f"${payment['Interes y Servicio']:.2f}",
-            f"${payment['Abono a Capital']:.2f}",
-            f"${payment['Total Cancelar']:.2f}",
-            f"${payment['Capital Restante']:.2f}",
-        ])
+    # Add logo in the center
+    if logo_path:
+        logo = Image(logo_path, width=2*inch, height=2*inch)  # Adjust size as needed
+        logo.hAlign = 'CENTER'
+        content.append(logo)
+        content.append(Spacer(1, 12))
 
-    # Create the table
-    table = Table(table_data)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    # Add client information
+    client_info = [
+        [Paragraph(f"Nombre de Cliente: {client_name}", normal_style)],
+        [Paragraph(f"Monto Total: ${principal:.2f}", normal_style)],
+        [Paragraph(f"Plazo: {term} Meses", normal_style)]
+    ]
+    
+    client_table = Table(client_info, colWidths=[3.5 * inch])
+    client_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.black),
+        ('BOX', (0, 0), (-1, -1), 0.25, colors.black),
     ]))
 
-    elements.append(table)
+    content.append(client_table)
+    content.append(Spacer(1, 12))
 
-    # Build the temporary PDF
-    pdf.build(elements)
+    # Add schedule details (keeping original table format)
+    data = [['Pagos', 'Interes y Servicio', 'Abono a Capital', 'Total a Cancelar', 'Capital Restante']]
+    for i, payment in enumerate(schedule, start=1):
+        data.append([f"Payment {i}",
+                     f"Q{payment['Interes y Servicio']}",
+                     f"Q{payment['Abono a Capital']}",
+                     f"Q{payment['Total Cancelar']}",
+                     f"Q{payment['Capital Restante']}"])
 
-    # Merge the temporary PDF with the template
-    if template_path and os.path.exists(template_path):
-        template_pdf = PdfReader(template_path)
-        temp_pdf_reader = PdfReader(temp_pdf)
-        output_pdf = PdfWriter()
+    table = Table(data, colWidths=[1 * inch, 1.5 * inch, 1.5 * inch, 1.5 * inch, 1.5 * inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('ALIGN', (0, 1), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.black),
+        ('BOX', (0, 0), (-1, -1), 0.25, colors.black),
+    ]))
+    
+    content.append(table)
 
-        # Overlay each page
-        for page in template_pdf.pages:
-            temp_page = temp_pdf_reader.pages[0]  # Assuming one page of data for now
-            page.merge_page(temp_page)
-            output_pdf.add_page(page)
-
-        with open(filename, 'wb') as output_file:
-            output_pdf.write(output_file)
-        
-        # Clean up the temporary PDF
-        os.remove(temp_pdf)
-    else:
-        # If no template, just rename the temp PDF to final filename
-        os.rename(temp_pdf, filename)
+    # Build the PDF
+    doc.build(content)
